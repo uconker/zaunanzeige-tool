@@ -63,10 +63,21 @@ async function wfsGetFeature(wfsBase, typeName, cqlFilter) {
     srsName: "EPSG:4326",
     CQL_FILTER: cqlFilter,
   });
+  
   const url = `${wfsBase}?${params.toString()}`;
+  console.log(`🌐 Sending WFS Request for ${typeName}:`, url); // <--- This prints the clickable URL
+  
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`WFS GetFeature failed for ${typeName} (${res.status})`);
-  return res.json();
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(`❌ Server Error for ${typeName}:`, errorText); // <--- This prints the server's rejection reason
+    throw new Error(`WFS GetFeature failed for ${typeName} (${res.status})`);
+  }
+  
+  const data = await res.json();
+  console.log(`✅ Server Response for ${typeName}:`, data); // <--- This prints the features found
+  return data;
 }
 
 // ---------------------------------------------------------------------------
