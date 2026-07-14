@@ -33,7 +33,7 @@ export const CONFIG = {
   // ("geom", "the_geom", "SHAPE", "geometry"...). VERIFY via a DescribeFeatureType
   // call once online (?service=WFS&request=DescribeFeatureType&typeName=...)
   // and adjust if the CQL_FILTER queries in geo.js come back empty/erroring.
-  GEOMETRY_PROPERTY: "geom",
+  GEOMETRY_PROPERTY: "SHAPE",
 
   // Bavarian aerial imagery (DOP), public WMS, used as the satellite layer.
   // VERIFY this endpoint once online — Bayern reorganizes geoservices.bayern.de
