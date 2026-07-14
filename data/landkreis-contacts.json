@@ -18,5 +18,11 @@
     "department": "",
     "street": "Bayerstraße 28a",
     "plzOrt": "80335 München"
+  },
+  "Landkreis Donau-Ries": {
+    "name": "Landratsamt Donau-Ries",
+    "department": "Untere Naturschutzbehörde",
+    "street": "Pflegstraße 2",
+    "plzOrt": "86609 Donauwörth"
   }
 }
