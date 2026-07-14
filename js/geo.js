@@ -143,8 +143,9 @@ export async function checkProtectedAreas(lat, lon) {
       return { label, checked: false, reason: "layer name not found - see console" };
     }
     const insideFilter = `INTERSECTS(${geomProp}, SRID=4326;${point})`;
-    const nearFilter = `DWITHIN(${geomProp}, SRID=4326;${point}, ${CONFIG.NEAR_RADIUS_M}, meters)`;
-
+    const radiusDegrees = CONFIG.NEAR_RADIUS_M / 111000;
+    const nearFilter = `DWITHIN(${geomProp}, SRID=4326;${point}, ${radiusDegrees})`;
+    
     const [insideResult, nearResult] = await Promise.all([
       wfsGetFeature(CONFIG.SCHUTZGEBIETE_WFS_BASE, typeName, insideFilter).catch(() => null),
       wfsGetFeature(CONFIG.SCHUTZGEBIETE_WFS_BASE, typeName, nearFilter).catch(() => null),
