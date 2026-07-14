@@ -65,19 +65,19 @@ async function wfsGetFeature(wfsBase, typeName, cqlFilter) {
   });
   
   const url = `${wfsBase}?${params.toString()}`;
-  console.log(`🌐 Sending WFS Request for ${typeName}:`, url); // <--- This prints the clickable URL
+  console.log(`🌐 Requesting ${typeName}:`, url);
   
   const res = await fetch(url);
+  const text = await res.text(); // Grab the raw text to catch XML errors!
   
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error(`❌ Server Error for ${typeName}:`, errorText); // <--- This prints the server's rejection reason
-    throw new Error(`WFS GetFeature failed for ${typeName} (${res.status})`);
+  try {
+    const data = JSON.parse(text);
+    console.log(`✅ Success for ${typeName}:`, data.features.length, "features found");
+    return data;
+  } catch (e) {
+    console.error(`❌ Server sent an XML Error instead of data for ${typeName}:\n`, text);
+    throw new Error("Server returned XML/HTML instead of JSON");
   }
-  
-  const data = await res.json();
-  console.log(`✅ Server Response for ${typeName}:`, data); // <--- This prints the features found
-  return data;
 }
 
 // ---------------------------------------------------------------------------
