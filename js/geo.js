@@ -38,7 +38,8 @@ async function getAllLayerNames(wfsBase) {
     if (!res.ok) throw new Error(`WFS GetCapabilities failed for ${wfsBase} (${res.status})`);
     const xmlText = await res.text();
     const xml = new DOMParser().parseFromString(xmlText, "application/xml");
-    return Array.from(xml.getElementsByTagNameNS("*", "Name")).map((n) => n.textContent.trim());  })();
+    return Array.from(xml.getElementsByTagNameNS("*", "Name")).map((n) => n.textContent.trim());
+  })();
 
   layerNameCache.set(wfsBase, promise);
   return promise;
@@ -53,7 +54,7 @@ function pickLayer(names, ...hints) {
   return null;
 }
 
-async function wfsGetFeature(wfsBase, typeName, cqlFilter) {
+async function wfsGetFeature(wfsBase, typeName, bbox) {
   // 1. We remove 'outputFormat' entirely so the server sends its default XML
   const params = new URLSearchParams({
     service: "WFS",
@@ -61,11 +62,12 @@ async function wfsGetFeature(wfsBase, typeName, cqlFilter) {
     request: "GetFeature",
     typeNames: typeName,
     srsName: "EPSG:4326",
-    CQL_FILTER: cqlFilter,
+    // Force standard GPS axis order (Latitude, Longitude)
+    bbox: `${bbox},urn:ogc:def:crs:EPSG::4326`,
   });
   
   const url = `${wfsBase}?${params.toString()}`;
-  console.log(`🌐 Requesting XML for ${typeName}:`, url);
+  console.log(`🌐 Requesting BBOX for ${typeName}:`, url);
   
   const res = await fetch(url);
   const text = await res.text(); 
@@ -87,8 +89,10 @@ async function wfsGetFeature(wfsBase, typeName, cqlFilter) {
   
   // 5. Package them up into the JSON structure the rest of your app expects
   const features = members.map(member => {
-    // Look for <NAME> or <name> tags inside the feature
-    const nameNode = member.getElementsByTagNameNS("*", "NAME")[0] || member.getElementsByTagNameNS("*", "name")[0];
+    // Look for <NAME> or <name> or <Name> tags inside the feature
+    const nameNode = member.getElementsByTagNameNS("*", "NAME")[0] || 
+                     member.getElementsByTagNameNS("*", "name")[0] ||
+                     member.getElementsByTagNameNS("*", "Name")[0];
     return {
       properties: {
         name: nameNode ? nameNode.textContent.trim() : null
@@ -96,9 +100,10 @@ async function wfsGetFeature(wfsBase, typeName, cqlFilter) {
     };
   });
   
-  console.log(`✅ Success for ${typeName}:`, features.length, "features found");
+  console.log(`✅ Success for ${typeName}:`, features.length, "features found in bounding box");
   return { features };
 }
+
 // ---------------------------------------------------------------------------
 // FFH / SPA / Naturschutzgebiete lookup (js/config.js: SCHUTZGEBIETE_WFS_BASE)
 // ---------------------------------------------------------------------------
@@ -130,25 +135,29 @@ async function discoverSchutzgebieteLayers() {
 /**
  * Checks whether a point is inside, or within CONFIG.NEAR_RADIUS_M of,
  * an FFH-Gebiet (Flora-Fauna-Habitat), SPA-Gebiet (Vogelschutzgebiet), or
- * Naturschutzgebiet. Two WFS queries per layer (INTERSECTS for "inside",
- * DWITHIN for "nearby") so no client-side geometry math is needed.
+ * Naturschutzgebiet. Uses a Bounding Box (BBOX) query.
  */
 export async function checkProtectedAreas(lat, lon) {
   const { ffh, spa, nsg } = await discoverSchutzgebieteLayers();
-  const point = `POINT(${lon} ${lat})`;
-  const geomProp = CONFIG.GEOMETRY_PROPERTY;
+
+  // ~10 meter square for the "Inside" check
+  const tLat = 0.0001;
+  const tLon = 0.00015;
+  const insideBbox = `${lat - tLat},${lon - tLon},${lat + tLat},${lon + tLon}`;
+  
+  // ~5 km square for the "Near" check
+  const nLat = 0.045; 
+  const nLon = 0.067;
+  const nearBbox = `${lat - nLat},${lon - nLon},${lat + nLat},${lon + nLon}`;
 
   async function checkLayer(typeName, label) {
     if (!typeName) {
       return { label, checked: false, reason: "layer name not found - see console" };
     }
-    const insideFilter = `INTERSECTS(${geomProp}, SRID=4326;${point})`;
-    const radiusDegrees = CONFIG.NEAR_RADIUS_M / 111000;
-    const nearFilter = `DWITHIN(${geomProp}, SRID=4326;${point}, ${radiusDegrees})`;
     
     const [insideResult, nearResult] = await Promise.all([
-      wfsGetFeature(CONFIG.SCHUTZGEBIETE_WFS_BASE, typeName, insideFilter).catch(() => null),
-      wfsGetFeature(CONFIG.SCHUTZGEBIETE_WFS_BASE, typeName, nearFilter).catch(() => null),
+      wfsGetFeature(CONFIG.SCHUTZGEBIETE_WFS_BASE, typeName, insideBbox).catch(() => null),
+      wfsGetFeature(CONFIG.SCHUTZGEBIETE_WFS_BASE, typeName, nearBbox).catch(() => null),
     ]);
 
     const insideFeatures = insideResult?.features ?? [];
@@ -159,7 +168,8 @@ export async function checkProtectedAreas(lat, lon) {
       checked: true,
       inside: insideFeatures.length > 0,
       near: nearFeatures.length > 0,
-      areaNames: [...new Set(nearFeatures.map((f) => f.properties?.NAME || f.properties?.name).filter(Boolean))],
+      // The XML parser already maps the name property to lowercase "name", so we just check for that
+      areaNames: [...new Set(nearFeatures.map((f) => f.properties?.name).filter(Boolean))],
     };
   }
 
@@ -204,19 +214,21 @@ async function discoverBiotopLayers() {
 }
 
 /**
- * Returns which Biotopkartierung zone(s) the point falls in. Point-only
- * INTERSECTS check (no "near" radius - this classifies the terrain the
+ * Returns which Biotopkartierung zone(s) the point falls in. 
+ * Point-only check (no "near" radius - this classifies the terrain the
  * fence itself sits in, not a surrounding area).
  */
 export async function checkBiotopkartierung(lat, lon) {
   const { stadt, flachland, alpen } = await discoverBiotopLayers();
-  const point = `POINT(${lon} ${lat})`;
-  const geomProp = CONFIG.GEOMETRY_PROPERTY;
+  
+  // ~10 meter square for the "Inside" check
+  const tLat = 0.0001;
+  const tLon = 0.00015;
+  const insideBbox = `${lat - tLat},${lon - tLon},${lat + tLat},${lon + tLon}`;
 
   async function checkLayer(typeName, label, key) {
     if (!typeName) return { key, label, checked: false, matched: false, reason: "layer name not found - see console" };
-    const filter = `INTERSECTS(${geomProp}, SRID=4326;${point})`;
-    const result = await wfsGetFeature(CONFIG.BIOTOPKARTIERUNG_WFS_BASE, typeName, filter).catch(() => null);
+    const result = await wfsGetFeature(CONFIG.BIOTOPKARTIERUNG_WFS_BASE, typeName, insideBbox).catch(() => null);
     const features = result?.features ?? [];
     return { key, label, checked: true, matched: features.length > 0 };
   }
