@@ -54,32 +54,51 @@ function pickLayer(names, ...hints) {
 }
 
 async function wfsGetFeature(wfsBase, typeName, cqlFilter) {
+  // 1. We remove 'outputFormat' entirely so the server sends its default XML
   const params = new URLSearchParams({
     service: "WFS",
     version: "2.0.0",
     request: "GetFeature",
     typeNames: typeName,
-    outputFormat: "application/json",
     srsName: "EPSG:4326",
     CQL_FILTER: cqlFilter,
   });
   
   const url = `${wfsBase}?${params.toString()}`;
-  console.log(`🌐 Requesting ${typeName}:`, url);
+  console.log(`🌐 Requesting XML for ${typeName}:`, url);
   
   const res = await fetch(url);
-  const text = await res.text(); // Grab the raw text to catch XML errors!
+  const text = await res.text(); 
   
-  try {
-    const data = JSON.parse(text);
-    console.log(`✅ Success for ${typeName}:`, data.features.length, "features found");
-    return data;
-  } catch (e) {
-    console.error(`❌ Server sent an XML Error instead of data for ${typeName}:\n`, text);
-    throw new Error("Server returned XML/HTML instead of JSON");
+  // 2. Catch server errors
+  if (text.includes("ExceptionReport")) {
+    console.error(`❌ Server Error for ${typeName}:\n`, text);
+    throw new Error("Server returned a WFS Exception");
   }
+  
+  // 3. Parse the XML
+  const xml = new DOMParser().parseFromString(text, "application/xml");
+  
+  // 4. Find all features (WFS 2.0 uses "member", WFS 1.1 uses "featureMember")
+  let members = Array.from(xml.getElementsByTagNameNS("*", "member"));
+  if (members.length === 0) {
+    members = Array.from(xml.getElementsByTagNameNS("*", "featureMember"));
+  }
+  
+  // 5. Package them up into the JSON structure the rest of your app expects
+  const features = members.map(member => {
+    // Look for <NAME> or <name> tags inside the feature
+    const nameNode = member.getElementsByTagNameNS("*", "NAME")[0] || member.getElementsByTagNameNS("*", "name")[0];
+    return {
+      properties: {
+        name: nameNode ? nameNode.textContent.trim() : null
+      }
+    };
+  });
+  
+  console.log(`✅ Success for ${typeName}:`, features.length, "features found");
+  return { features };
 }
-
 // ---------------------------------------------------------------------------
 // FFH / SPA / Naturschutzgebiete lookup (js/config.js: SCHUTZGEBIETE_WFS_BASE)
 // ---------------------------------------------------------------------------
