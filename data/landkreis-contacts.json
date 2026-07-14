@@ -1,0 +1,22 @@
+{
+  "_comment": "Key = the Landkreis/kreisfreie Stadt name as returned by Nominatim (check the console/result panel for the exact spelling it returns, then add an entry here). Add one entry every time the tool reports a Landkreis you don't have on file yet.",
+
+  "Landkreis Freising": {
+    "name": "Landratsamt Freising",
+    "department": "Gerson Zimny",
+    "street": "Landshuter Str. 31",
+    "plzOrt": "85356 Freising"
+  },
+  "Landkreis Kelheim": {
+    "name": "Landratsamt Kelheim",
+    "department": "Frau Eberl, Umwelt- und Naturschutz",
+    "street": "Donaupark 12",
+    "plzOrt": "93309 Kelheim"
+  },
+  "München": {
+    "name": "Untere Naturschutzbehörde München",
+    "department": "",
+    "street": "Bayerstraße 28a",
+    "plzOrt": "80335 München"
+  }
+}

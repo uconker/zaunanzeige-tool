@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaunanzeige-Tool — Wildes Bayern e.V.</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header>
+  <h1>Zaunanzeige-Tool</h1>
+  <p class="subtitle">Koordinaten prüfen, Zuständigkeit &amp; Schutzgebiete ermitteln, Anzeige erzeugen</p>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>1. Fundstelle</h2>
+    <form id="checkForm">
+      <label>Breitengrad (lat)
+        <input type="text" id="lat" placeholder="z.B. 48.0872" required>
+      </label>
+      <label>Längengrad (lon)
+        <input type="text" id="lon" placeholder="z.B. 11.6811" required>
+      </label>
+      <label>Flurnummer <span class="hint">(optional, manuell aus Bayern Atlas Plus)</span>
+        <input type="text" id="flurnummer" placeholder="z.B. 2228">
+      </label>
+      <button type="submit">Prüfen</button>
+    </form>
+
+    <div id="atlasLinks" class="atlas-links"></div>
+
+    <div id="result" class="result"></div>
+  </section>
+
+  <section class="panel">
+    <h2>2. Karte</h2>
+    <div id="map"></div>
+  </section>
+
+  <section class="panel">
+    <h2>3. Anzeige erzeugen</h2>
+    <form id="letterForm">
+      <label>Ort, Datum
+        <input type="text" id="ortDatum" placeholder="München, 14. Juli 2026">
+      </label>
+      <label>Beschreibung der Fundstelle <span class="hint">(erscheint im Anschreiben)</span>
+        <textarea id="locationDescription" rows="2" placeholder="z.B. 81739 München, Waldperlach"></textarea>
+      </label>
+      <label>Name der/des Bearbeitenden
+        <input type="text" id="preparerName" placeholder="Vor- und Nachname">
+      </label>
+      <button type="button" id="generateBtn" disabled>Word-Dokument erzeugen</button>
+      <p class="hint">Erst „Prüfen" ausführen (Schritt 1), danach ist dieser Button aktiv.</p>
+    </form>
+  </section>
+</main>
+
+<footer>
+  <p>Internes Werkzeug für die Arbeitsgruppe · Daten: LfU Bayern (Schutzgebiete, CC BY 4.0), OpenStreetMap</p>
+</footer>
+
+<!-- Leaflet -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-image@0.4.0/leaflet-image.js"></script>
+<!-- docx templating -->
+<script src="https://unpkg.com/pizzip@3.1.6/dist/pizzip.js"></script>
+<script src="https://unpkg.com/docxtemplater@3.44.0/js/docxtemplater.js"></script>
+<script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script src="https://unpkg.com/proj4@2.11.0/dist/proj4.js"></script>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
