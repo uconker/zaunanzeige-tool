@@ -38,8 +38,7 @@ async function getAllLayerNames(wfsBase) {
     if (!res.ok) throw new Error(`WFS GetCapabilities failed for ${wfsBase} (${res.status})`);
     const xmlText = await res.text();
     const xml = new DOMParser().parseFromString(xmlText, "application/xml");
-    return Array.from(xml.getElementsByTagName("Name")).map((n) => n.textContent.trim());
-  })();
+    return Array.from(xml.getElementsByTagNameNS("*", "Name")).map((n) => n.textContent.trim());  })();
 
   layerNameCache.set(wfsBase, promise);
   return promise;
