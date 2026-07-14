@@ -12,9 +12,9 @@ export const CONFIG = {
   // https://www.lfu.bayern.de/gdi/wfs/natur/schutzgebiete?service=WFS&request=GetCapabilities
   // and paste them into the *_TYPENAME_HINT values below.
   SCHUTZGEBIETE_WFS_BASE: "https://www.lfu.bayern.de/gdi/wfs/natur/schutzgebiete",
-  FFH_TYPENAME_HINT: "ffh",                 // Flora-Fauna-Habitat-Gebiete
-  SPA_TYPENAME_HINT: "spa",                 // Vogelschutzgebiete (falls back to "vogelschutz")
-  NSG_TYPENAME_HINT: "naturschutzgebiet",   // Naturschutzgebiete (falls back to "nsg")
+  FFH_TYPENAME_HINT: "fauna_flora_habitat_gebiet",
+  SPA_TYPENAME_HINT: "vogelschutzgebiet",
+  NSG_TYPENAME_HINT: "naturschutzgebiet",
 
   // Biotopkartierung WFS — separate dataset/endpoint from Schutzgebiete.
   // URL is a best guess following LfU's naming pattern and is UNVERIFIED
@@ -23,10 +23,9 @@ export const CONFIG = {
   // service name, or via the Bayern Atlas layer info panel for
   // "Biotopkartierung Stadt/Flachland/Alpen".
   BIOTOPKARTIERUNG_WFS_BASE: "https://www.lfu.bayern.de/gdi/wfs/natur/biotopkartierung",
-  BIOTOP_STADT_HINT: "stadt",
-  BIOTOP_FLACHLAND_HINT: "flachland",       // falls back to "tiefland"
-  BIOTOP_ALPEN_HINT: "alpen",
-
+  BIOTOP_STADT_HINT: "bio_sbk",
+  BIOTOP_FLACHLAND_HINT: "bio_fbk",       
+  BIOTOP_ALPEN_HINT: "bio_abk", // Note: This wasn't in your links, but following the naming pattern, Alpen is very likely "bio_abk" (Alpenbiotopkartierung).
   // Radius (in meters) that counts as "near" a protection area.
   NEAR_RADIUS_M: 5000,
 
