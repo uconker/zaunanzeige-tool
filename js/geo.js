@@ -33,7 +33,8 @@ async function getAllLayerNames(wfsBase) {
   if (layerNameCache.has(wfsBase)) return layerNameCache.get(wfsBase);
 
   const promise = (async () => {
-    const url = `${wfsBase}?service=WFS&version=2.0.0&request=GetCapabilities`;
+    // Downgraded to 1.0.0 for maximum ArcGIS compatibility
+    const url = `${wfsBase}?service=WFS&version=1.0.0&request=GetCapabilities`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`WFS GetCapabilities failed for ${wfsBase} (${res.status})`);
     const xmlText = await res.text();
@@ -55,41 +56,37 @@ function pickLayer(names, ...hints) {
 }
 
 async function wfsGetFeature(wfsBase, typeName, bbox) {
-  // 1. We remove 'outputFormat' entirely so the server sends its default XML
   const params = new URLSearchParams({
     service: "WFS",
-    version: "2.0.0",
+    version: "1.0.0", // WFS 1.0.0 strictly uses Lon,Lat (X,Y) and is highly reliable
     request: "GetFeature",
-    typeNames: typeName,
+    typeName: typeName, // 1.0.0 uses singular "typeName" instead of "typeNames"
     srsName: "EPSG:4326",
-    // Force standard GPS axis order (Latitude, Longitude)
-    bbox: `${bbox},urn:ogc:def:crs:EPSG::4326`,
+    bbox: bbox // format: minLon,minLat,maxLon,maxLat
   });
   
   const url = `${wfsBase}?${params.toString()}`;
-  console.log(`🌐 Requesting BBOX for ${typeName}:`, url);
+  console.log(`🌐 Requesting WFS 1.0.0 BBOX for ${typeName}:`, url);
   
   const res = await fetch(url);
   const text = await res.text(); 
   
-  // 2. Catch server errors
-  if (text.includes("ExceptionReport")) {
+  // Catch Server Exceptions
+  if (text.includes("ServiceException") || text.includes("ExceptionReport")) {
     console.error(`❌ Server Error for ${typeName}:\n`, text);
     throw new Error("Server returned a WFS Exception");
   }
   
-  // 3. Parse the XML
   const xml = new DOMParser().parseFromString(text, "application/xml");
   
-  // 4. Find all features (WFS 2.0 uses "member", WFS 1.1 uses "featureMember")
-  let members = Array.from(xml.getElementsByTagNameNS("*", "member"));
+  // WFS 1.0.0 uses featureMember
+  let members = Array.from(xml.getElementsByTagNameNS("*", "featureMember"));
   if (members.length === 0) {
-    members = Array.from(xml.getElementsByTagNameNS("*", "featureMember"));
+    members = Array.from(xml.getElementsByTagNameNS("*", "member"));
   }
   
-  // 5. Package them up into the JSON structure the rest of your app expects
   const features = members.map(member => {
-    // Look for <NAME> or <name> or <Name> tags inside the feature
+    // Look for <NAME> or <name> tags inside the feature
     const nameNode = member.getElementsByTagNameNS("*", "NAME")[0] || 
                      member.getElementsByTagNameNS("*", "name")[0] ||
                      member.getElementsByTagNameNS("*", "Name")[0];
@@ -135,20 +132,22 @@ async function discoverSchutzgebieteLayers() {
 /**
  * Checks whether a point is inside, or within CONFIG.NEAR_RADIUS_M of,
  * an FFH-Gebiet (Flora-Fauna-Habitat), SPA-Gebiet (Vogelschutzgebiet), or
- * Naturschutzgebiet. Uses a Bounding Box (BBOX) query.
+ * Naturschutzgebiet. Two WFS queries per layer using Bounding Boxes.
  */
 export async function checkProtectedAreas(lat, lon) {
   const { ffh, spa, nsg } = await discoverSchutzgebieteLayers();
 
+  // WFS 1.0.0 requires bbox = minX,minY,maxX,maxY (Lon, Lat)
+  
   // ~10 meter square for the "Inside" check
   const tLat = 0.0001;
   const tLon = 0.00015;
-  const insideBbox = `${lat - tLat},${lon - tLon},${lat + tLat},${lon + tLon}`;
+  const insideBbox = `${lon - tLon},${lat - tLat},${lon + tLon},${lat + tLat}`;
   
   // ~5 km square for the "Near" check
   const nLat = 0.045; 
   const nLon = 0.067;
-  const nearBbox = `${lat - nLat},${lon - nLon},${lat + nLat},${lon + nLon}`;
+  const nearBbox = `${lon - nLon},${lat - nLat},${lon + nLon},${lat + nLat}`;
 
   async function checkLayer(typeName, label) {
     if (!typeName) {
@@ -168,7 +167,6 @@ export async function checkProtectedAreas(lat, lon) {
       checked: true,
       inside: insideFeatures.length > 0,
       near: nearFeatures.length > 0,
-      // The XML parser already maps the name property to lowercase "name", so we just check for that
       areaNames: [...new Set(nearFeatures.map((f) => f.properties?.name).filter(Boolean))],
     };
   }
@@ -183,66 +181,16 @@ export async function checkProtectedAreas(lat, lon) {
 }
 
 // ---------------------------------------------------------------------------
-// Biotopkartierung (Stadt / Flachland / Alpen) - tells us whether the point
-// sits in alpine, lowland, or urban terrain, per LfU's own classification.
-// Used mainly to decide whether alpine-specific species (Gamswild,
-// Raufußhühner) belong in the letter's wording.
+// Biotopkartierung (Bypassed)
 // ---------------------------------------------------------------------------
 
-let biotopLayers = null;
-
-async function discoverBiotopLayers() {
-  if (biotopLayers) return biotopLayers;
-  const names = await getAllLayerNames(CONFIG.BIOTOPKARTIERUNG_WFS_BASE);
-
-  biotopLayers = {
-    stadt: pickLayer(names, CONFIG.BIOTOP_STADT_HINT),
-    flachland: pickLayer(names, CONFIG.BIOTOP_FLACHLAND_HINT, "tiefland"),
-    alpen: pickLayer(names, CONFIG.BIOTOP_ALPEN_HINT),
-    allNames: names,
-  };
-
-  const missing = ["stadt", "flachland", "alpen"].filter((k) => !biotopLayers[k]);
-  if (missing.length) {
-    console.warn(
-      `Could not auto-detect Biotopkartierung layer name(s) for: ${missing.join(", ")}. ` +
-        `All available Biotopkartierung layer names:`,
-      names
-    );
-  }
-  return biotopLayers;
-}
-
-/**
- * Returns which Biotopkartierung zone(s) the point falls in. 
- * Point-only check (no "near" radius - this classifies the terrain the
- * fence itself sits in, not a surrounding area).
- */
 export async function checkBiotopkartierung(lat, lon) {
-  const { stadt, flachland, alpen } = await discoverBiotopLayers();
-  
-  // ~10 meter square for the "Inside" check
-  const tLat = 0.0001;
-  const tLon = 0.00015;
-  const insideBbox = `${lat - tLat},${lon - tLon},${lat + tLat},${lon + tLon}`;
-
-  async function checkLayer(typeName, label, key) {
-    if (!typeName) return { key, label, checked: false, matched: false, reason: "layer name not found - see console" };
-    const result = await wfsGetFeature(CONFIG.BIOTOPKARTIERUNG_WFS_BASE, typeName, insideBbox).catch(() => null);
-    const features = result?.features ?? [];
-    return { key, label, checked: true, matched: features.length > 0 };
-  }
-
-  const results = await Promise.all([
-    checkLayer(stadt, "Biotopkartierung Stadt", "stadt"),
-    checkLayer(flachland, "Biotopkartierung Flachland", "flachland"),
-    checkLayer(alpen, "Biotopkartierung Alpen", "alpen"),
-  ]);
-
-  const matched = results.find((r) => r.matched);
+  // The LfU does not provide a live public WFS for Biotopkartierung, which
+  // causes a 400 Bad Request error. This bypass prevents the tool from crashing.
   return {
-    results,
-    isAlpine: results.find((r) => r.key === "alpen")?.matched ?? false,
-    matchedZone: matched?.key ?? null,
+    results: [],
+    isAlpine: false,
+    matchedZone: null,
+    error: "WFS-Dienst vom LfU nicht verfügbar (Datensatz existiert nur als Download)."
   };
 }
