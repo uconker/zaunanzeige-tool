@@ -77,11 +77,25 @@ export async function checkProtectedAreas(lat, lon) {
     };
   }
 
+  // Changed extensions from .geojson to .json to match Mapshaper's export behavior
   const [ffh, spa, nsg] = await Promise.all([
-    checkLayer("ffh.geojson", "FFH-Gebiet (Flora-Fauna-Habitat-Gebiet)"),
-    checkLayer("spa.geojson", "SPA-Gebiet (Vogelschutzgebiet)"),
-    checkLayer("nsg.geojson", "Naturschutzgebiet")
+    checkLayer("ffh.json", "FFH-Gebiet (Flora-Fauna-Habitat-Gebiet)"),
+    checkLayer("spa.json", "SPA-Gebiet (Vogelschutzgebiet)"),
+    checkLayer("nsg.json", "Naturschutzgebiet")
   ]);
 
   return { ffh, spa, nsg };
+}
+
+// ---------------------------------------------------------------------------
+// Biotopkartierung (Bypassed)
+// ---------------------------------------------------------------------------
+
+export async function checkBiotopkartierung(lat, lon) {
+  return {
+    results: [],
+    isAlpine: false,
+    matchedZone: null,
+    error: "WFS-Dienst vom LfU nicht verfügbar (Datensatz existiert nur als Download)."
+  };
 }
