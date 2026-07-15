@@ -124,12 +124,31 @@ async function handleGenerate(e) {
   // Pass both the text data AND the photos to letter.js
   await generateLetter(data, photoFiles);
 }
-
 async function init() {
-  initMap("map");
-  await loadContacts();
-  $("checkForm").addEventListener("submit", handleCheckSubmit);
-  $("generateBtn").addEventListener("click", handleGenerate);
+  // 1. Connect the buttons FIRST so the page never resets, even if something else fails!
+  const checkForm = $("checkForm");
+  if (checkForm) {
+    checkForm.addEventListener("submit", handleCheckSubmit);
+  }
+  
+  const genBtn = $("generateBtn");
+  if (genBtn) {
+    genBtn.addEventListener("click", handleGenerate);
+  }
+
+  // 2. Load the map safely
+  try {
+    initMap("map");
+  } catch (error) {
+    console.error("Fehler beim Laden der Karte:", error);
+  }
+
+  // 3. Load the contacts safely
+  try {
+    await loadContacts();
+  } catch (error) {
+    console.error("Fehler beim Laden der Kontakte (landkreis-contacts.json):", error);
+  }
 }
 
 init();
