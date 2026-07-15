@@ -22,12 +22,12 @@ export function buildBayernAtlasUrl(lat, lon) {
 
 /**
  * Builds the URL for BayernAtlas Plus.
- * Uses the ALKIS-Flurkarte (parzellarkarte) + Nature Reserve layers + Alpine Biotopes.
- * Zooms in much closer (z=17) to clearly show the Flurstück boundaries.
+ * Uses the standard map (atkis) which automatically turns into the ALKIS-Flurkarte 
+ * (including parcel numbers and boundaries) when zoomed to z=17.
  */
 export function buildBayernAtlasPlusUrl(lat, lon) {
   const layers = [
-    "parzellarkarte", // This is the exact internal parameter for the ALKIS-Flurkarte
+    "atkis", // Use atkis to prevent the orange crash error
     `${SCHUTZGEBIETE_WMS}||fauna_flora_habitat_gebiet||FFH-Gebiete`,
     `${SCHUTZGEBIETE_WMS}||vogelschutzgebiet||Vogelschutzgebiete`,
     `${SCHUTZGEBIETE_WMS}||naturschutzgebiet||Naturschutzgebiete`,
