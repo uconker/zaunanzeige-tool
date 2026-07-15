@@ -28,7 +28,6 @@ async function runCheck(lat, lon, isAlpine) {
     <span class="hint">(Plus erfordert Login — bei aktiver Sitzung im selben Browser bereits angemeldet)</span>
   `;
 
-  // No more crashing! We only call findLandkreis and the local checkProtectedAreas
   const [landkreisResult, spaCheck] = await Promise.all([
     findLandkreis(lat, lon).catch((e) => ({ error: e.message })),
     checkProtectedAreas(lat, lon).catch((e) => ({ error: e.message }))
@@ -60,7 +59,8 @@ async function runCheck(lat, lon, isAlpine) {
     for (const key of ["ffh", "spa", "nsg"]) {
       const r = spaCheck[key];
       if (!r.checked) {
-        parts.push(`<p class="warn">${r.label}: Lokale Datei nicht gefunden (data/schutzgebiete/${key}.geojson prüfen).</p>`);
+        // Updated text helper to explicitly guide towards the .json extension format
+        parts.push(`<p class="warn">${r.label}: Lokale Datei nicht gefunden (data/schutzgebiete/${key}.json prüfen).</p>`);
       } else if (r.inside) {
         parts.push(`<p class="hit">⚠ Liegt INNERHALB eines ${r.label}: ${r.areaNames.join(", ") || "(Name unbekannt)"}</p>`);
       } else if (r.near) {
@@ -86,7 +86,7 @@ async function handleCheckSubmit(e) {
   e.preventDefault();
   const lat = parseFloat($("lat").value);
   const lon = parseFloat($("lon").value);
-  const isAlpine = $("isAlpine").checked; // Grab the checkbox state here
+  const isAlpine = $("isAlpine").checked; 
   
   if (Number.isNaN(lat) || Number.isNaN(lon)) {
     renderResult('<p class="warn">Bitte gültige Koordinaten eingeben.</p>');
@@ -114,7 +114,7 @@ async function handleGenerate(e) {
     coordinatesLine: `(Koordinaten: ${lastCheck.lat}, ${lastCheck.lon}${$("flurnummer").value ? `, Flurnummer: ${$("flurnummer").value}` : ""})`,
     preparerName: $("preparerName").value,
     spaCheck: lastCheck.spaCheck,
-    biotopCheck: { isAlpine: lastCheck.isAlpine }, // Passes the checkbox state to letter.js
+    biotopCheck: { isAlpine: lastCheck.isAlpine }, 
   });
 
   await generateLetter(data);
