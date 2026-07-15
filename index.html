@@ -27,6 +27,10 @@
       <label>Flurnummer <span class="hint">(optional, manuell aus Bayern Atlas Plus)</span>
         <input type="text" id="flurnummer" placeholder="z.B. 2228">
       </label>
+      <label style="margin-top: 1rem; display: block;">
+     <span style="font-weight: bold;">Beweisfotos hinzufügen (optional):</span><br>
+     <input type="file" id="photoUpload" accept="image/png, image/jpeg" multiple style="margin-top: 0.5rem;">
+   </label>
       <label style="margin-top: 1rem; display: flex; align-items: center; gap: 0.5rem;">
      <input type="checkbox" id="isAlpine" style="width: auto; margin: 0;">
      <span style="font-weight: normal;">Fundstelle liegt im Alpenraum <span class="hint">(ergänzt alpine Arten in der Anzeige)</span></span>
@@ -74,6 +78,7 @@
 <script src="https://unpkg.com/docxtemplater@3.44.0/build/docxtemplater.js"></script>
 <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 <script src="https://unpkg.com/proj4@2.11.0/dist/proj4.js"></script>
+<script src="https://unpkg.com/docxtemplater-image-module-free@8.0.2/build/imagemodule.js"></script>
 
 <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <script type="module" src="js/app.js"></script></html>
