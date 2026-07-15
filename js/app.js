@@ -114,10 +114,15 @@ async function handleGenerate(e) {
     coordinatesLine: `(Koordinaten: ${lastCheck.lat}, ${lastCheck.lon}${$("flurnummer").value ? `, Flurnummer: ${$("flurnummer").value}` : ""})`,
     preparerName: $("preparerName").value,
     spaCheck: lastCheck.spaCheck,
-    biotopCheck: { isAlpine: lastCheck.isAlpine }, 
+    biotopCheck: { isAlpine: lastCheck.isAlpine }
   });
 
-  await generateLetter(data);
+  // --- NEU: Grab the uploaded photos from the HTML input ---
+  const photoInput = $("photoUpload");
+  const photoFiles = photoInput && photoInput.files ? photoInput.files : [];
+
+  // Pass both the text data AND the photos to letter.js
+  await generateLetter(data, photoFiles);
 }
 
 async function init() {
