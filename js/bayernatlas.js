@@ -1,31 +1,35 @@
-import { CONFIG } from "./config.js";
+// js/bayernatlas.js
 
-// EPSG:25832 = ETRS89 / UTM zone 32N, the coordinate system BayernAtlas
-// URLs use for their E/N parameters.
-proj4.defs("EPSG:25832", "+proj=utm +zone=32 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+// We URL-encode the LfU's WMS server address once so both functions can use it
+const LFU_WMS = "https%3A%2F%2Fwww.lfu.bayern.de%2Fgdi%2Fwms%2Fnatur%2Fschutzgebiete";
 
-function toUtm32(lat, lon) {
-  const [E, N] = proj4("EPSG:4326", "EPSG:25832", [lon, lat]);
-  return { E: Math.round(E), N: Math.round(N) };
-}
-
-function buildUrl(baseUrl, lat, lon) {
-  const { E, N } = toUtm32(lat, lon);
-  const params = new URLSearchParams({
-    lang: "de",
-    topic: "ba",
-    bgLayer: "luftbild",
-    E: String(E),
-    N: String(N),
-    zoom: String(CONFIG.BAYERNATLAS_DEFAULT_ZOOM),
-  });
-  return `${baseUrl}?${params.toString()}`;
-}
-
+/**
+ * Builds the URL for the free BayernAtlas.
+ * Uses the standard map (atkis) + Nature Reserve layers.
+ */
 export function buildBayernAtlasUrl(lat, lon) {
-  return buildUrl(CONFIG.BAYERNATLAS_BASE_URL, lat, lon);
+  const layers = [
+    "atkis", 
+    `${LFU_WMS}||fauna_flora_habitat_gebiet||FFH-Gebiete`,
+    `${LFU_WMS}||vogelschutzgebiet||Vogelschutzgebiete`,
+    `${LFU_WMS}||naturschutzgebiet||Naturschutzgebiete`
+  ].join(",");
+
+  return `https://atlas.bayern.de/?c=${lon},${lat}&z=14&crh=true&l=${layers}`;
 }
 
+/**
+ * Builds the URL for BayernAtlas Plus.
+ * Uses the Flurkarte (parzellarkarte) + Nature Reserve layers.
+ * Zooms in much closer (z=17) to clearly show the Flurstück boundaries.
+ */
 export function buildBayernAtlasPlusUrl(lat, lon) {
-  return buildUrl(CONFIG.BAYERNATLAS_PLUS_BASE_URL, lat, lon);
+  const layers = [
+    "parzellarkarte", // This forces the Flurstück/property boundaries to load
+    `${LFU_WMS}||fauna_flora_habitat_gebiet||FFH-Gebiete`,
+    `${LFU_WMS}||vogelschutzgebiet||Vogelschutzgebiete`,
+    `${LFU_WMS}||naturschutzgebiet||Naturschutzgebiete`
+  ].join(",");
+
+  return `https://atlas.bayern.de/plus/?c=${lon},${lat}&z=17&crh=true&l=${layers}`;
 }
