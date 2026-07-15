@@ -1,18 +1,20 @@
 // js/bayernatlas.js
 
-// We URL-encode the LfU's WMS server address once so both functions can use it
-const LFU_WMS = "https%3A%2F%2Fwww.lfu.bayern.de%2Fgdi%2Fwms%2Fnatur%2Fschutzgebiete";
+// URL-encode the WMS server addresses so BayernAtlas can read them
+const SCHUTZGEBIETE_WMS = "https%3A%2F%2Fwww.lfu.bayern.de%2Fgdi%2Fwms%2Fnatur%2Fschutzgebiete";
+const BIOTOP_WMS = "https%3A%2F%2Fwww.lfu.bayern.de%2Fgdi%2Fwms%2Fnatur%2Fbiotopkartierung";
 
 /**
  * Builds the URL for the free BayernAtlas.
- * Uses the standard map (atkis) + Nature Reserve layers.
+ * Uses the standard map (atkis) + Nature Reserve layers + Alpine Biotopes.
  */
 export function buildBayernAtlasUrl(lat, lon) {
   const layers = [
     "atkis", 
-    `${LFU_WMS}||fauna_flora_habitat_gebiet||FFH-Gebiete`,
-    `${LFU_WMS}||vogelschutzgebiet||Vogelschutzgebiete`,
-    `${LFU_WMS}||naturschutzgebiet||Naturschutzgebiete`
+    `${SCHUTZGEBIETE_WMS}||fauna_flora_habitat_gebiet||FFH-Gebiete`,
+    `${SCHUTZGEBIETE_WMS}||vogelschutzgebiet||Vogelschutzgebiete`,
+    `${SCHUTZGEBIETE_WMS}||naturschutzgebiet||Naturschutzgebiete`,
+    `${BIOTOP_WMS}||biotopkartierung_alpen||Biotopkartierung (Alpen)`
   ].join(",");
 
   return `https://atlas.bayern.de/?c=${lon},${lat}&z=14&crh=true&l=${layers}`;
@@ -20,15 +22,16 @@ export function buildBayernAtlasUrl(lat, lon) {
 
 /**
  * Builds the URL for BayernAtlas Plus.
- * Uses the Flurkarte (parzellarkarte) + Nature Reserve layers.
+ * Uses the ALKIS-Flurkarte (parzellarkarte) + Nature Reserve layers + Alpine Biotopes.
  * Zooms in much closer (z=17) to clearly show the Flurstück boundaries.
  */
 export function buildBayernAtlasPlusUrl(lat, lon) {
   const layers = [
-    "parzellarkarte", // This forces the Flurstück/property boundaries to load
-    `${LFU_WMS}||fauna_flora_habitat_gebiet||FFH-Gebiete`,
-    `${LFU_WMS}||vogelschutzgebiet||Vogelschutzgebiete`,
-    `${LFU_WMS}||naturschutzgebiet||Naturschutzgebiete`
+    "parzellarkarte", // This is the exact internal parameter for the ALKIS-Flurkarte
+    `${SCHUTZGEBIETE_WMS}||fauna_flora_habitat_gebiet||FFH-Gebiete`,
+    `${SCHUTZGEBIETE_WMS}||vogelschutzgebiet||Vogelschutzgebiete`,
+    `${SCHUTZGEBIETE_WMS}||naturschutzgebiet||Naturschutzgebiete`,
+    `${BIOTOP_WMS}||biotopkartierung_alpen||Biotopkartierung (Alpen)`
   ].join(",");
 
   return `https://atlas.bayern.de/plus/?c=${lon},${lat}&z=17&crh=true&l=${layers}`;
