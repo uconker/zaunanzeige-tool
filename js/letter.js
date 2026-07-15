@@ -54,88 +54,30 @@ export function buildLetterData({ authority, ortDatum, locationDescription, coor
 }
 
 /**
- * Uses PizZip + docxtemplater to fill the template and append images using a safe ID cache.
+ * Uses PizZip + docxtemplater to fill the template with text and trigger the download.
  */
-export async function generateLetter(data, photoFiles = []) {
+export async function generateLetter(data) {
   try {
-    const processedPhotos = [];
-    const photoCache = {}; // Safely holds buffers and dimensions outside the template
-
-    // 1. Process images and calculate dimensions
-    let photoIndex = 0;
-    for (const file of photoFiles) {
-      const { buffer, w, h } = await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = async () => {
-          const maxWidth = 550; // Fits nicely within standard A4 margins
-          let finalW = img.width;
-          let finalH = img.height;
-          
-          // Scale down if the image is too wide
-          if (finalW > maxWidth) {
-            finalH = Math.round(finalH * (maxWidth / finalW));
-            finalW = maxWidth;
-          }
-          
-          try {
-            const arrayBuffer = await file.arrayBuffer();
-            resolve({ buffer: arrayBuffer, w: finalW, h: finalH });
-          } catch (e) {
-            reject(e);
-          }
-        };
-        img.onerror = reject;
-        img.src = URL.createObjectURL(file);
-      });
-      
-      const imgId = `photo_${photoIndex++}`;
-      photoCache[imgId] = { buffer, w, h };
-      processedPhotos.push({ img: imgId }); // Only pass the safe text ID to the template
-    }
-
-    // Attach the simple IDs to the data going into the Word document
-    data.photos = processedPhotos;
-
-    // 2. Fetch the Word template
+    // 1. Fetch the Word template
     const res = await fetch(TEMPLATE_PATH);
     if (!res.ok) throw new Error(`Could not load letter template (${res.status})`);
     const arrayBuffer = await res.arrayBuffer();
     const zip = new window.PizZip(arrayBuffer);
 
-    // 3. Configure the Image Module using the safe cache
-    const imageOptions = {
-      centered: false,
-      getImage: function(tagValue, tagName) {
-        // tagValue will be "photo_0", "photo_1", etc.
-        if (photoCache[tagValue]) {
-          return photoCache[tagValue].buffer;
-        }
-        return null;
-      },
-      getSize: function(img, tagValue, tagName) {
-        if (photoCache[tagValue]) {
-          return [photoCache[tagValue].w, photoCache[tagValue].h];
-        }
-        return [500, 500]; // Fallback
-      }
-    };
-    const imageModule = new window.ImageModule(imageOptions);
-
-    // 4. Initialize docxtemplater with the module attached
+    // 2. Initialize docxtemplater (No image modules needed!)
     const doc = new window.docxtemplater(zip, {
       paragraphLoop: true,
-      linebreaks: true,
-      modules: [imageModule]
+      linebreaks: true
     });
 
-    // 5. Render the document with text and photos
+    // 3. Render the document with text
     doc.render(data);
     const out = doc.getZip().generate({
       type: "blob",
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     });
 
-    // 6. Trigger the download automatically
+    // 4. Trigger the download automatically
     const filename = `Zaunanzeige_${(data.location_description || "Anzeige").replace(/[^\w-]+/g, "_").slice(0, 40)}.docx`;
     const url = URL.createObjectURL(out);
     const a = document.createElement("a");
