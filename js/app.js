@@ -1,11 +1,11 @@
 import { CONFIG } from "./config.js";
-import { findLandkreis, checkProtectedAreas, checkBiotopkartierung } from "./geo.js";
+import { findLandkreis, checkProtectedAreas } from "./geo.js";
 import { buildBayernAtlasUrl, buildBayernAtlasPlusUrl } from "./bayernatlas.js";
 import { initMap, setPoint } from "./map.js";
 import { generateLetter, buildLetterData } from "./letter.js";
 
 let landkreisContacts = {};
-let lastCheck = null; // { lat, lon, landkreis, spaCheck }
+let lastCheck = null; 
 
 const $ = (id) => document.getElementById(id);
 
@@ -18,8 +18,8 @@ function renderResult(html) {
   $("result").innerHTML = html;
 }
 
-async function runCheck(lat, lon) {
-  renderResult("<p>Prüfe Zuständigkeit und Schutzgebiete …</p>");
+async function runCheck(lat, lon, isAlpine) {
+  renderResult("<p>Prüfe Zuständigkeit und lokale Schutzgebiete …</p>");
   setPoint(lat, lon, { radiusM: CONFIG.NEAR_RADIUS_M });
 
   $("atlasLinks").innerHTML = `
@@ -28,13 +28,13 @@ async function runCheck(lat, lon) {
     <span class="hint">(Plus erfordert Login — bei aktiver Sitzung im selben Browser bereits angemeldet)</span>
   `;
 
-  const [landkreisResult, spaCheck, biotopCheck] = await Promise.all([
+  // No more crashing! We only call findLandkreis and the local checkProtectedAreas
+  const [landkreisResult, spaCheck] = await Promise.all([
     findLandkreis(lat, lon).catch((e) => ({ error: e.message })),
-    checkProtectedAreas(lat, lon).catch((e) => ({ error: e.message })),
-    checkBiotopkartierung(lat, lon).catch((e) => ({ error: e.message })),
+    checkProtectedAreas(lat, lon).catch((e) => ({ error: e.message }))
   ]);
 
-  lastCheck = { lat, lon, landkreisResult, spaCheck, biotopCheck };
+  lastCheck = { lat, lon, landkreisResult, spaCheck, isAlpine };
 
   const landkreisName = landkreisResult.landkreis;
   const contact = landkreisName ? landkreisContacts[landkreisName] : null;
@@ -60,7 +60,7 @@ async function runCheck(lat, lon) {
     for (const key of ["ffh", "spa", "nsg"]) {
       const r = spaCheck[key];
       if (!r.checked) {
-        parts.push(`<p class="warn">${r.label}: Layer nicht gefunden (siehe Konsole) — bitte config.js prüfen.</p>`);
+        parts.push(`<p class="warn">${r.label}: Lokale Datei nicht gefunden (data/schutzgebiete/${key}.geojson prüfen).</p>`);
       } else if (r.inside) {
         parts.push(`<p class="hit">⚠ Liegt INNERHALB eines ${r.label}: ${r.areaNames.join(", ") || "(Name unbekannt)"}</p>`);
       } else if (r.near) {
@@ -71,20 +71,11 @@ async function runCheck(lat, lon) {
     }
   }
 
-  parts.push(`<h3>Biotopkartierung</h3>`);
-  if (biotopCheck.error) {
-    parts.push(`<p class="warn">Biotopkartierungs-Abfrage fehlgeschlagen: ${biotopCheck.error}</p>`);
+  parts.push(`<h3>Alpenraum</h3>`);
+  if (isAlpine) {
+    parts.push(`<p>Einordnung: <strong>Alpen</strong> — alpine Arten (z.B. Gamswild, Raufußhühner) werden in der Anzeige berücksichtigt.</p>`);
   } else {
-    const unchecked = biotopCheck.results.filter((r) => !r.checked);
-    if (unchecked.length) {
-      parts.push(`<p class="warn">${unchecked.map((r) => r.label).join(", ")}: Layer nicht gefunden (siehe Konsole) — bitte config.js prüfen.</p>`);
-    }
-    if (biotopCheck.matchedZone) {
-      const labels = { stadt: "Stadt", flachland: "Flachland", alpen: "Alpen" };
-      parts.push(`<p>Einordnung: <strong>Biotopkartierung ${labels[biotopCheck.matchedZone]}</strong>${biotopCheck.isAlpine ? " — alpine Arten (z.B. Gamswild, Raufußhühner) werden in der Anzeige berücksichtigt." : ""}</p>`);
-    } else if (!unchecked.length) {
-      parts.push(`<p>Keiner der drei Biotopkartierungs-Bereiche trifft auf diesen Punkt zu.</p>`);
-    }
+    parts.push(`<p>Fundstelle liegt im Flachland/Stadtgebiet (keine alpinen Arten eingefügt).</p>`);
   }
 
   renderResult(parts.join("\n"));
@@ -95,11 +86,13 @@ async function handleCheckSubmit(e) {
   e.preventDefault();
   const lat = parseFloat($("lat").value);
   const lon = parseFloat($("lon").value);
+  const isAlpine = $("isAlpine").checked; // Grab the checkbox state here
+  
   if (Number.isNaN(lat) || Number.isNaN(lon)) {
     renderResult('<p class="warn">Bitte gültige Koordinaten eingeben.</p>');
     return;
   }
-  await runCheck(lat, lon);
+  await runCheck(lat, lon, isAlpine);
 }
 
 async function handleGenerate(e) {
@@ -121,7 +114,7 @@ async function handleGenerate(e) {
     coordinatesLine: `(Koordinaten: ${lastCheck.lat}, ${lastCheck.lon}${$("flurnummer").value ? `, Flurnummer: ${$("flurnummer").value}` : ""})`,
     preparerName: $("preparerName").value,
     spaCheck: lastCheck.spaCheck,
-    biotopCheck: lastCheck.biotopCheck,
+    biotopCheck: { isAlpine: lastCheck.isAlpine }, // Passes the checkbox state to letter.js
   });
 
   await generateLetter(data);
