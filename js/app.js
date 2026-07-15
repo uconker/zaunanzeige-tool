@@ -117,13 +117,10 @@ async function handleGenerate(e) {
     biotopCheck: { isAlpine: lastCheck.isAlpine }
   });
 
-  // --- NEU: Grab the uploaded photos from the HTML input ---
-  const photoInput = $("photoUpload");
-  const photoFiles = photoInput && photoInput.files ? photoInput.files : [];
-
-  // Pass both the text data AND the photos to letter.js
-  await generateLetter(data, photoFiles);
+  // Removed the photo upload logic, back to simple text generation!
+  await generateLetter(data);
 }
+
 async function init() {
   // 1. Connect the buttons FIRST so the page never resets, even if something else fails!
   const checkForm = $("checkForm");
