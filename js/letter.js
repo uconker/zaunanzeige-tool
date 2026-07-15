@@ -54,16 +54,17 @@ export function buildLetterData({ authority, ortDatum, locationDescription, coor
 }
 
 /**
- * Uses PizZip + docxtemplater to fill the template and append images.
+ * Uses PizZip + docxtemplater to fill the template and append images using a safe ID cache.
  */
 export async function generateLetter(data, photoFiles = []) {
   try {
-    // 1. Process images and calculate dimensions so they fit on A4
     const processedPhotos = [];
-    const imageDimensions = new Map();
+    const photoCache = {}; // Safely holds buffers and dimensions outside the template
 
+    // 1. Process images and calculate dimensions
+    let photoIndex = 0;
     for (const file of photoFiles) {
-      const { buffer, w, h } = await new Promise((resolve) => {
+      const { buffer, w, h } = await new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = async () => {
           const maxWidth = 550; // Fits nicely within standard A4 margins
@@ -76,17 +77,23 @@ export async function generateLetter(data, photoFiles = []) {
             finalW = maxWidth;
           }
           
-          const buffer = await file.arrayBuffer();
-          resolve({ buffer, w: finalW, h: finalH });
+          try {
+            const arrayBuffer = await file.arrayBuffer();
+            resolve({ buffer: arrayBuffer, w: finalW, h: finalH });
+          } catch (e) {
+            reject(e);
+          }
         };
+        img.onerror = reject;
         img.src = URL.createObjectURL(file);
       });
       
-      imageDimensions.set(buffer, [w, h]);
-      processedPhotos.push({ img: buffer });
+      const imgId = `photo_${photoIndex++}`;
+      photoCache[imgId] = { buffer, w, h };
+      processedPhotos.push({ img: imgId }); // Only pass the safe text ID to the template
     }
 
-    // Attach the processed photos to the data going into the Word document
+    // Attach the simple IDs to the data going into the Word document
     data.photos = processedPhotos;
 
     // 2. Fetch the Word template
@@ -95,14 +102,21 @@ export async function generateLetter(data, photoFiles = []) {
     const arrayBuffer = await res.arrayBuffer();
     const zip = new window.PizZip(arrayBuffer);
 
-    // 3. Configure the Image Module
+    // 3. Configure the Image Module using the safe cache
     const imageOptions = {
       centered: false,
-      getImage(tagValue) {
-        return tagValue; // Returns the raw ArrayBuffer of the image
+      getImage: function(tagValue, tagName) {
+        // tagValue will be "photo_0", "photo_1", etc.
+        if (photoCache[tagValue]) {
+          return photoCache[tagValue].buffer;
+        }
+        return null;
       },
-      getSize(imgBuffer) {
-        return imageDimensions.get(imgBuffer) || [500, 500]; // Uses our calculated dimensions
+      getSize: function(img, tagValue, tagName) {
+        if (photoCache[tagValue]) {
+          return [photoCache[tagValue].w, photoCache[tagValue].h];
+        }
+        return [500, 500]; // Fallback
       }
     };
     const imageModule = new window.ImageModule(imageOptions);
