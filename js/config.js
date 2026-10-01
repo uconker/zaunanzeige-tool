@@ -4,6 +4,10 @@
 // ---------------------------------------------------------------------------
 
 export const CONFIG = {
+  // Link to the shared complaint tracker (Claude artifact). Opens in a new tab;
+  // only people the tracker was shared with can open it. Leave "" to hide the button.
+  TRACKER_URL: "https://claude.ai/artifact/4mwahQyVUwRpt98rqfdqgY",
+
   // Bavarian LfU (Landesamt für Umwelt) protection-area WFS.
   // Public, no login, CC BY 4.0. VERIFY once online: the exact typeNames
   // can shift; app.js auto-discovers them from GetCapabilities on first use
