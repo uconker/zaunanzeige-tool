@@ -231,6 +231,12 @@ async function init() {
     copyBtn.addEventListener("click", handleCopyForTracker);
   }
 
+  const trackerLink = $("trackerLink");
+  if (trackerLink && CONFIG.TRACKER_URL) {
+    trackerLink.href = CONFIG.TRACKER_URL;
+    trackerLink.hidden = false;
+  }
+
   // 2. Load the map safely
   try {
     initMap("map");
