@@ -5,9 +5,35 @@ import { initMap, setPoint } from "./map.js";
 import { generateLetter, buildLetterData } from "./letter.js";
 
 let landkreisContacts = {};
-let lastCheck = null; 
+let lastCheck = null;
 
 const $ = (id) => document.getElementById(id);
+
+// Contacts are matched by a forgiving key: no spaces/dots/case, and "Stadt "/
+// "Landeshauptstadt " prefixes are ignored. "Landkreis X" and "X" (the city) stay
+// distinct, so Landkreis Passau and Stadt Passau don't collide.
+function normKey(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/^(kreisfreie stadt|landeshauptstadt|stadt)\s+/, "")
+    .replace(/[^a-zäöüß]/g, "");
+}
+
+function findContact(landkreisResult) {
+  const raw = landkreisResult?.raw || {};
+  const candidates = [raw.county, raw.city, raw.town, raw.municipality, landkreisResult?.landkreis, raw.state_district]
+    .filter(Boolean);
+  const index = new Map();
+  for (const [key, entry] of Object.entries(landkreisContacts)) {
+    if (key.startsWith("_")) continue;
+    index.set(normKey(key), { key, entry });
+  }
+  for (const c of candidates) {
+    const hit = index.get(normKey(c));
+    if (hit) return hit;
+  }
+  return null;
+}
 
 async function loadContacts() {
   const res = await fetch("data/landkreis-contacts.json");
@@ -36,7 +62,8 @@ async function runCheck(lat, lon, isAlpine) {
   lastCheck = { lat, lon, landkreisResult, spaCheck, isAlpine };
 
   const landkreisName = landkreisResult.landkreis;
-  const contact = landkreisName ? landkreisContacts[landkreisName] : null;
+  const found = findContact(landkreisResult);
+  const contact = found ? found.entry : null;
 
   const parts = [];
 
@@ -45,8 +72,12 @@ async function runCheck(lat, lon, isAlpine) {
     parts.push(`<p class="warn">Reverse-Geocoding fehlgeschlagen: ${landkreisResult.error}</p>`);
   } else if (!landkreisName) {
     parts.push(`<p class="warn">Konnte keinen Landkreis bestimmen. Bitte manuell prüfen.</p>`);
+  } else if (contact && contact.pruefen) {
+    parts.push(`<p><strong>${found.key}</strong> — <span class="warn">Adresse noch nicht bestätigt.</span> Mögliche Adressen:<br>
+      ${(contact.alternativen || []).join("<br>")}<br>
+      <span class="hint">Im Brief steht dafür ein Platzhalter. Richtige Adresse einmal in data/landkreis-contacts.json eintragen.</span></p>`);
   } else if (contact) {
-    parts.push(`<p><strong>${landkreisName}</strong> — Kontakt hinterlegt:<br>
+    parts.push(`<p><strong>${found.key}</strong> — Kontakt hinterlegt:<br>
       ${contact.department || ""}<br>${contact.street || ""}<br>${contact.plzOrt || ""}</p>`);
   } else {
     parts.push(`<p><strong>${landkreisName}</strong> — <span class="warn">kein Kontakt in data/landkreis-contacts.json hinterlegt. Bitte einmalig ergänzen.</span></p>`);
@@ -80,6 +111,7 @@ async function runCheck(lat, lon, isAlpine) {
 
   renderResult(parts.join("\n"));
   $("generateBtn").disabled = false;
+  $("copyBtn").disabled = false;
 }
 
 async function handleCheckSubmit(e) {
@@ -100,7 +132,17 @@ async function handleGenerate(e) {
   if (!lastCheck) return;
 
   const landkreisName = lastCheck.landkreisResult.landkreis;
-  const contact = landkreisName ? landkreisContacts[landkreisName] : null;
+  const found = findContact(lastCheck.landkreisResult);
+  let contact = found ? found.entry : null;
+  if (contact && contact.pruefen) {
+    // Unconfirmed address: never print a guess into an official letter.
+    contact = {
+      name: contact.name,
+      department: contact.department,
+      street: `{BITTE PRÜFEN: ${(contact.alternativen || []).join(" ODER ")}}`,
+      plzOrt: "{BITTE PLZ ORT EINTRAGEN}",
+    };
+  }
 
   const data = buildLetterData({
     authority: contact || {
@@ -121,6 +163,57 @@ async function handleGenerate(e) {
   await generateLetter(data);
 }
 
+// One tab-separated line for the shared tracker: paste it on the tracker page (Strg+V).
+function areaSummary(spaCheck) {
+  if (!spaCheck || spaCheck.error) return "";
+  const parts = [];
+  let anyChecked = false;
+  for (const key of ["ffh", "spa", "nsg"]) {
+    const r = spaCheck[key];
+    if (!r || !r.checked) continue;
+    anyChecked = true;
+    if (r.inside || r.near) {
+      parts.push(`${r.label} ${r.inside ? "innerhalb" : "im Umkreis"}${r.areaNames.length ? ": " + r.areaNames.join(", ") : ""}`);
+    }
+  }
+  return parts.length ? parts.join("; ") : (anyChecked ? "kein Treffer" : "");
+}
+
+async function handleCopyForTracker() {
+  if (!lastCheck) return;
+  const found = findContact(lastCheck.landkreisResult);
+  const landkreisName = lastCheck.landkreisResult.landkreis;
+  const authority = found ? found.entry.name : (landkreisName ? `Landratsamt ${landkreisName}` : "");
+  const flur = $("flurnummer").value;
+  const clean = (v) => String(v || "").replace(/[\t\r\n]+/g, " ").trim();
+  const row = [
+    "ZA1",
+    new Date().toLocaleDateString("sv"),
+    $("preparerName").value,
+    $("locationDescription").value,
+    `${lastCheck.lat}, ${lastCheck.lon}${flur ? `, Flurnr. ${flur}` : ""}`,
+    authority,
+    areaSummary(lastCheck.spaCheck),
+  ].map(clean).join("\t");
+
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(row);
+    ok = true;
+  } catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = row;
+    document.body.appendChild(ta);
+    ta.select();
+    try { ok = document.execCommand("copy"); } catch (e2) { ok = false; }
+    document.body.removeChild(ta);
+  }
+  const btn = $("copyBtn");
+  const old = btn.textContent;
+  btn.textContent = ok ? "Kopiert ✓" : "Kopieren fehlgeschlagen";
+  setTimeout(() => { btn.textContent = old; }, 2000);
+}
+
 async function init() {
   // 1. Connect the buttons FIRST so the page never resets, even if something else fails!
   const checkForm = $("checkForm");
@@ -131,6 +224,11 @@ async function init() {
   const genBtn = $("generateBtn");
   if (genBtn) {
     genBtn.addEventListener("click", handleGenerate);
+  }
+
+  const copyBtn = $("copyBtn");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", handleCopyForTracker);
   }
 
   // 2. Load the map safely
